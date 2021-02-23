@@ -2,6 +2,8 @@ import xml
 from pathlib import Path
 import requests
 import xml.etree.ElementTree as ET
+import dateparser
+import datetime
 
 
 RSS_LIST_PATH = "feeds.txt"
@@ -44,12 +46,23 @@ def extract_from_url(rss_url: str) -> ET:
     return ET.fromstring(resp.text)
 
 
-def get_last_date(root: ET) -> str:
-    # TODO: This is a scaffold
+def get_last_date(root: ET) -> datetime:
     if root is None:
         return None
+
     rss_path = "./channel/item/pubDate"
-    #print(str(list(root.findall(rss_path))))
+
+
     dates = root.findall(rss_path)
+
     # Parse Date and get last
-    return list(dates)[0].text
+    # TODO: ASSUMPTION: Dates may not be in time order, so searching is necessary.
+    last_pubdate = None
+    for date in dates:
+        pubdate = dateparser.parse(date.text)
+        if last_pubdate is None:
+            last_pubdate = pubdate
+        else:
+            if pubdate > last_pubdate:
+                last_pubdate = pubdate
+    return last_pubdate
