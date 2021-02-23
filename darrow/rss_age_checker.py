@@ -45,15 +45,15 @@ ASSUMPTION: Dates may not be in time order, so searching is necessary. If they a
 
 Theoretical improvements:
 
-This code could be improved to be time O(n * min(m[])) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as it stands in this commit is designed to allow for future extensibility for other parsing and data retrieval. The next commit will potentially include this feature.
+This code has been improved to be time O(n * min(m[])) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as in commit (61fcd4e) is designed to allow for future extensibility for other parsing and data retrieval. The next commit includes this proposed efficiency optimization.
 
 """
 class RSSAgeChecker:
-    def __init__(self):
-        pass
+    def __init__(self, days:int = 3):
+        self._days = days
 
-    def check_stale_feeds(self, days: int = 3, company_dict:dict = RSS_MIXED_DICT) -> dict:
-
+    def check_stale_feeds(self, company_dict:dict = RSS_MIXED_DICT) -> dict:
+        days = self._days
         if DEBUG: print("Debug mode is active")
         fresh_companies = set()
         for company, feed in company_dict.items():
@@ -65,9 +65,11 @@ class RSSAgeChecker:
                     wrapped_feed = feed
                 for element in wrapped_feed:
                     root = self.extract_from_url(element)
-                    last_date = self.get_last_date(root)
-                    if DEBUG: print(f"Last date was {str(last_date)}")
-                    if self.check_threshold(last_date = last_date, days = days):
+                    #last_date = self.get_last_date(root)
+                    #if DEBUG: print(f"Last date was {str(last_date)}")
+                    #if self.check_threshold(last_date = last_date, days = days):
+                    if self.check_efficiently_for_first_fresh_date(root):
+
                         if DEBUG: print(f"{company} is fresh.")
                         fresh_companies.add(company)
             except Exception as err:
@@ -81,8 +83,10 @@ class RSSAgeChecker:
         return stale_companies
 
     # This method checks for if the last date is after the theshold.
-    def check_threshold(self, last_date: datetime, days: int):
+    def check_threshold(self, last_date: datetime) -> bool:
+        days = self._days
         return last_date > (datetime.now(tz=last_date.tzinfo) - timedelta(days=days))
+
 
 
     def extract_from_url(self, rss_url: str) -> ET:
@@ -98,6 +102,25 @@ class RSSAgeChecker:
             print(f"{rss_url} returned bad status code {resp.status_code}")
         finally:
             return tree
+
+    def check_efficiently_for_first_fresh_date(self, root: ET) -> bool:
+        if root is None:
+            return False
+
+        rss_path = "./channel/item/pubDate"
+
+        dates = root.findall(rss_path)
+
+        # Worst case scenario = Stale - O(n * m)
+        # Better case scenario = Fresh - O(n * <m)
+        # Best case scenario = Fresh, Ordered - O(n * 1)
+
+        for date in dates:
+            pubdate = dateparser.parse(date.text)
+            if self.check_threshold(pubdate):
+                return True
+
+        return False
 
 
     def get_last_date(self, root: ET) -> datetime:

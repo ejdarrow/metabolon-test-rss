@@ -1,7 +1,8 @@
 from darrow import RSSAgeChecker
 import pytest
 
-# TODO: More Unit Tests need to happen.
+# TODO: More Unit Tests would be better.
+
 class TestRSSAgeChecker:
     checker = RSSAgeChecker()
 
@@ -22,6 +23,6 @@ class TestRSSAgeChecker:
 
     def test_check_stale_feeds(self):
         stale_companies = self.checker.check_stale_feeds()
-        print(str(stale_companies))
+        #print(str(stale_companies))
         assert stale_companies is not None
 
