@@ -103,7 +103,7 @@ class RSSAgeChecker:
 
         return stale_companies
 
-    # This method checks for if the last date is after the theshold.
+    # Check for if the last date is after the theshold.
     def check_threshold(self, last_date: Optional[datetime]) -> bool:
         if last_date is None:
             return False
@@ -111,7 +111,7 @@ class RSSAgeChecker:
         return last_date > (datetime.now(tz=last_date.tzinfo) - timedelta(days=days))
 
 
-
+    # Attempt the network request to get the RSS Content.
     def extract_from_url(self, rss_url: str):
         if rss_url is None:
             return None
@@ -130,6 +130,8 @@ class RSSAgeChecker:
         finally:
             return tree
 
+
+    # Only look at enough dates to find a fresh one.
     def check_efficiently_for_first_fresh_date(self, root) -> bool:
         if root is None:
             return False
@@ -149,7 +151,7 @@ class RSSAgeChecker:
 
         return False
 
-
+    # Parse Date and get last
     def get_last_date(self, root) -> Optional[datetime]:
         if root is None:
             return None
@@ -158,7 +160,6 @@ class RSSAgeChecker:
 
         dates = root.findall(rss_path)
 
-        # Parse Date and get last
 
         last_pubdate = None
         for date in dates:
