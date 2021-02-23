@@ -5,6 +5,9 @@ import xml.etree.ElementTree as ET
 import dateparser
 from datetime import timedelta, datetime
 
+# TODO: Extend to make sure that multiple feeds per company is supported.
+
+
 DEBUG = False
 
 RSS_DICT = {
