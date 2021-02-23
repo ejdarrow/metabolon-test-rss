@@ -1,22 +1,27 @@
-from rss_age_checker import main, extract_from_url, get_last_date
+from darrow import RSSAgeChecker
+import pytest
 
+# TODO: More Unit Tests need to happen.
+class TestRSSAgeChecker:
+    checker = RSSAgeChecker()
 
-def test_extract_smoke():
-    assert extract_from_url(None) is None
+    def test_extract_smoke(self):
+        assert self.checker.extract_from_url(None) is None
 
-def test_request_rss():
-    url = "https://rss.art19.com/apology-line"
-    result = extract_from_url(url)
-    assert result is not None
-    assert len(str(result)) > 0
+    def test_request_rss(self):
+        url = "https://rss.art19.com/apology-line"
+        result = self.checker.extract_from_url(url)
+        assert result is not None
+        assert len(str(result)) > 0
 
-def test_find_last_date_smoke():
-    url = "https://rss.art19.com/apology-line"
-    result = extract_from_url(url)
-    last_date = get_last_date(result)
-    print(last_date)
-    assert last_date is not None
-    assert len(last_date) > 0
+    def test_find_last_date_smoke(self):
+        url = "https://rss.art19.com/apology-line"
+        result = self.checker.extract_from_url(url)
+        last_date = self.checker.get_last_date(result)
+        assert last_date is not None
 
-test_find_last_date_smoke()
-#test_request_rss()
+    def test_check_stale_feeds(self):
+        stale_companies = self.checker.check_stale_feeds()
+        print(str(stale_companies))
+        assert stale_companies is not None
+
