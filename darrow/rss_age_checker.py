@@ -1,11 +1,9 @@
 import xml
-from pathlib import Path
 import requests
 import xml.etree.ElementTree as ET
 import dateparser
 from datetime import timedelta, datetime
 
-# TODO: Extend to make sure that multiple feeds per company is supported.
 
 
 DEBUG = False
@@ -18,32 +16,73 @@ RSS_DICT = {
     "The Experiment":"http://feeds.wnyc.org/experiment_podcast"
 }
 
-# TODO: ASSUMPTION - The New York Times feed appears to be malformed from the link provided, or is huge, so I'm skipping it for the moment.
+RSS_MIXED_DICT = {
+    "Company1": [
+    "https://rss.art19.com/apology-line",
+    "https://feeds.fireside.fm/bibleinayear/rss"
+    ],
+    "Company2": "https://feeds.megaphone.fm/ADL9840290619",
+    "Company3": ["http://feeds.wnyc.org/experiment_podcast" ]
+
+}
+
+"""
+ASSUMPTION - The New York Times feed appears to be malformed from the link provided, or is huge, so I'm skipping it for the moment.
+
+ASSUMPTION - As companies may theoretically have more than one feed, the RSS_MIXED_DICT demonstrates that variability by showing how to handle type-insecure input.
+
+ASSUMPTION - It seems that the dates provided by the pubDate field are formatted correctly as 'aware' dates as defined by the datetime spec, meaning they represent exact times with Timezone references. This code may not work correctly if fed a pubDate field without a timezone defined. One way of dealing with this possibility would be to add heuristics to the date comparison function that will compare naive dates if necessary, and aware dates if necessary.
+
+ASSUMPTION - Companies to Feeds is 1 to Many. If a feed contains multiple companies' feeds, this code is inaccurate. If a link represents multiple feeds, fetching the pubdates within it and searching for the latest will still provide the appropriate freshness for that company.
+
+ASSUMPTION - Time is not a major factor in our calculations. This code operates in O(n*m) time where n is the number of companies, and m is the number of feeds in each company's entry. This could be made more efficient with asynchronous parallelism across the keys of the dictionary, but that would be best done in a compiled language, as python is limited by the GIL.
+
+ASSUMPTION - It is assumed that by the purpose of this code, this test would be run on roughly a daily basis. Unless we check the entirety of the internet's RSS feeds, it is doubtful that we would run into time limitations based on that cadence, and even then, as the process does not block itself, unless we have overrun sufficient to crash the system, all we would have to do is modify the number of days by which to threshold the test in order to account for the time necessary to run.
+
+ASSUMPTION - This code is assumed to be part of a pipeline or scheduled job that needs to not crash unless something truly catastrophic happens. Based on that, I have attempted to build this in such a way that errors associated with specific feeds are logged but do not crash the application.
+
+ASSUMPTION: Dates may not be in time order, so searching is necessary. If they are in time order, the efficiency can be improved.
+
+Theoretical improvements:
+
+This code could be improved to be time O(n * min(m[])) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as it stands in this commit is designed to allow for future extensibility for other parsing and data retrieval. The next commit will potentially include this feature.
+
+"""
 class RSSAgeChecker:
     def __init__(self):
         pass
 
-    def check_stale_feeds(self, days: int = 3, company_dict:dict = RSS_DICT) -> dict:
+    def check_stale_feeds(self, days: int = 3, company_dict:dict = RSS_MIXED_DICT) -> dict:
+
         if DEBUG: print("Debug mode is active")
-        companies = []
+        fresh_companies = set()
         for company, feed in company_dict.items():
             try:
                 if DEBUG: print(f"Checking {company}")
-                root = extract_from_url(feed)
-                last_date = get_last_date(root)
-                if DEBUG: print(f"Last date was {str(last_date)}")
-                if check_threshold(last_date = last_date, days = days):
-                    if DEBUG: print(f"{company} is stale.")
-                    companies.append(company)
+                if type(feed) is str:
+                    wrapped_feed = [feed]
+                elif type(feed) is list:
+                    wrapped_feed = feed
+                for element in wrapped_feed:
+                    root = self.extract_from_url(element)
+                    last_date = self.get_last_date(root)
+                    if DEBUG: print(f"Last date was {str(last_date)}")
+                    if self.check_threshold(last_date = last_date, days = days):
+                        if DEBUG: print(f"{company} is fresh.")
+                        fresh_companies.add(company)
             except Exception as err:
                 print(f"Encountered {err} with {company} from {feed}, moving on.")
 
-        if DEBUG: print(f"Stale Companies: {str(companies)}")
-        return companies
+        stale_companies = set(company_dict.keys()).difference(fresh_companies)
 
 
+        if DEBUG: print(f"Stale Companies: {str(stale_companies)}")
+
+        return stale_companies
+
+    # This method checks for if the last date is after the theshold.
     def check_threshold(self, last_date: datetime, days: int):
-        return last_date < (datetime.now(tz=last_date.tzinfo) - timedelta(days=days))
+        return last_date > (datetime.now(tz=last_date.tzinfo) - timedelta(days=days))
 
 
     def extract_from_url(self, rss_url: str) -> ET:
@@ -70,7 +109,6 @@ class RSSAgeChecker:
         dates = root.findall(rss_path)
 
         # Parse Date and get last
-        # TODO: ASSUMPTION: Dates may not be in time order, so searching is necessary.
 
         last_pubdate = None
         for date in dates:
