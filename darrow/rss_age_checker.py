@@ -2,6 +2,7 @@ import xml
 import requests
 import xml.etree.ElementTree as ET
 import dateparser
+from typing import Optional
 from datetime import timedelta, datetime
 from requests import Timeout, HTTPError
 
@@ -65,10 +66,10 @@ class RSSAgeChecker:
     def __init__(self, days:int = 3):
         self._days = days
 
-    def check_stale_feeds(self, company_dict:dict = RSS_MIXED_DICT) -> dict:
+    def check_stale_feeds(self, company_dict:dict = RSS_MIXED_DICT) -> set:
         if company_dict is None or not bool(company_dict):
             print("Warning: Empty Dictionary passed.")
-            return {}
+            return set()
 
         days = self._days
         if DEBUG: print("Debug mode is active")
@@ -103,13 +104,15 @@ class RSSAgeChecker:
         return stale_companies
 
     # This method checks for if the last date is after the theshold.
-    def check_threshold(self, last_date: datetime) -> bool:
+    def check_threshold(self, last_date: Optional[datetime]) -> bool:
+        if last_date is None:
+            return False
         days = self._days
         return last_date > (datetime.now(tz=last_date.tzinfo) - timedelta(days=days))
 
 
 
-    def extract_from_url(self, rss_url: str) -> ET:
+    def extract_from_url(self, rss_url: str):
         if rss_url is None:
             return None
 
@@ -127,7 +130,7 @@ class RSSAgeChecker:
         finally:
             return tree
 
-    def check_efficiently_for_first_fresh_date(self, root: ET) -> bool:
+    def check_efficiently_for_first_fresh_date(self, root) -> bool:
         if root is None:
             return False
 
@@ -147,7 +150,7 @@ class RSSAgeChecker:
         return False
 
 
-    def get_last_date(self, root: ET) -> datetime:
+    def get_last_date(self, root) -> Optional[datetime]:
         if root is None:
             return None
 
