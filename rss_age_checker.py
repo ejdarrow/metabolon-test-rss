@@ -25,7 +25,11 @@ def main(days: int = 3) -> dict:
     # TODO: Extract more functions to make this more testable
 
 
-def extract_from_url(rss_url: str):
+def check_threshold(date: str):
+    return True
+
+
+def extract_from_url(rss_url: str) -> ET:
     # TODO: Make exception handling a little more specific.
     if rss_url is None:
         return None
@@ -40,8 +44,12 @@ def extract_from_url(rss_url: str):
     return ET.fromstring(resp.text)
 
 
-def get_last_date(root: ET):
+def get_last_date(root: ET) -> str:
     # TODO: This is a scaffold
     if root is None:
         return None
-    pass
+    rss_path = "./channel/item/pubDate"
+    #print(str(list(root.findall(rss_path))))
+    dates = root.findall(rss_path)
+    # Parse Date and get last
+    return list(dates)[0].text
