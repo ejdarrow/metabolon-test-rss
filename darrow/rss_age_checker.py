@@ -45,7 +45,7 @@ ASSUMPTION: Dates may not be in time order, so searching is necessary. If they a
 
 Theoretical improvements:
 
-This code has been improved to be time O(n * min(m[])) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as in commit (61fcd4e) is designed to allow for future extensibility for other parsing and data retrieval. The next commit includes this proposed efficiency optimization.
+This code has been improved to be time O(n * <m) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as in commit (61fcd4e) is designed to allow for future extensibility for other parsing and data retrieval. The next commit (8ea5495) includes this proposed efficiency optimization.
 
 """
 class RSSAgeChecker:
@@ -64,6 +64,10 @@ class RSSAgeChecker:
                 elif type(feed) is list:
                     wrapped_feed = feed
                 for element in wrapped_feed:
+                    # This is to prevent rechecking further feeds of a given company that has already been determined to be fresh.
+                    if company in fresh_companies:
+                        break
+
                     root = self.extract_from_url(element)
                     #last_date = self.get_last_date(root)
                     #if DEBUG: print(f"Last date was {str(last_date)}")
