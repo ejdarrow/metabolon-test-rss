@@ -3,6 +3,8 @@ import requests
 import xml.etree.ElementTree as ET
 import dateparser
 from datetime import timedelta, datetime
+from requests import Timeout, HTTPError
+
 
 
 
@@ -29,6 +31,11 @@ RSS_MIXED_DICT = {
 """
 ASSUMPTION - The New York Times feed appears to be malformed from the link provided, or is huge, so I'm skipping it for the moment.
 
+ASSUMPTION - Per the NYT exception, I am assuming that the standard RSS Feed format is XML, with a similar schema to the majority of the feed examples provided. If there are exceptions to this, or JSON formatted feeds, or even feeds that are so massive that they must be handled with chunking and streaming, this code does not support that at this point. That could be handled by implementing different web interfacing code that hooks directly into the XML parser and parses the content as it comes in, stopping when it encounters a date that is fresh enough the hit the threshold.
+For example:
+https://requests.readthedocs.io/en/master/user/quickstart/#raw-response-content
+
+
 ASSUMPTION - As companies may theoretically have more than one feed, the RSS_MIXED_DICT demonstrates that variability by showing how to handle type-insecure input.
 
 ASSUMPTION - It seems that the dates provided by the pubDate field are formatted correctly as 'aware' dates as defined by the datetime spec, meaning they represent exact times with Timezone references. This code may not work correctly if fed a pubDate field without a timezone defined. One way of dealing with this possibility would be to add heuristics to the date comparison function that will compare naive dates if necessary, and aware dates if necessary.
@@ -43,16 +50,26 @@ ASSUMPTION - This code is assumed to be part of a pipeline or scheduled job that
 
 ASSUMPTION: Dates may not be in time order, so searching is necessary. If they are in time order, the efficiency can be improved.
 
-Theoretical improvements:
+Improvements:
 
-This code has been improved to be time O(n * <m) by checking the freshness of every date retrieved from the xml body as it is parsed and breaking the parsing at that point, as the desired data is at that point determined. The code as in commit (61fcd4e) is designed to allow for future extensibility for other parsing and data retrieval. The next commit (8ea5495) includes this proposed efficiency optimization.
+This code has been improved to be time O(n * <m) by checking the freshness of the dates retrieved from the xml body as it is parsed and breaking the parsing at the point of finding a fresh date, as the desired data is at that point determined. The code as in commit (61fcd4e) is designed to allow for future extensibility for other parsing and data retrieval and does not include this optimization. The next commit (8ea5495) includes this proposed efficiency optimization, and those that follow have similar improvements.
+
+Another possible improvement would be to add further and more specific error handling and reporting. It would also be helpful to have further testing of edge cases.
+
+It would also be helpful to understand why the New York Times feed listed in the example data is different. If that feed is too big to be handled by the requests library in any kind of reliable time, that would explain the problem. It also appears to be in HTML format when requested from a browser.
+
 
 """
+
 class RSSAgeChecker:
     def __init__(self, days:int = 3):
         self._days = days
 
     def check_stale_feeds(self, company_dict:dict = RSS_MIXED_DICT) -> dict:
+        if company_dict is None or not bool(company_dict):
+            print("Warning: Empty Dictionary passed.")
+            return {}
+
         days = self._days
         if DEBUG: print("Debug mode is active")
         fresh_companies = set()
@@ -64,14 +81,13 @@ class RSSAgeChecker:
                 elif type(feed) is list:
                     wrapped_feed = feed
                 for element in wrapped_feed:
+
                     # This is to prevent rechecking further feeds of a given company that has already been determined to be fresh.
                     if company in fresh_companies:
                         break
 
                     root = self.extract_from_url(element)
-                    #last_date = self.get_last_date(root)
-                    #if DEBUG: print(f"Last date was {str(last_date)}")
-                    #if self.check_threshold(last_date = last_date, days = days):
+
                     if self.check_efficiently_for_first_fresh_date(root):
 
                         if DEBUG: print(f"{company} is fresh.")
@@ -97,13 +113,17 @@ class RSSAgeChecker:
         if rss_url is None:
             return None
 
-        resp = requests.get(rss_url)
         tree = None
         try:
+            resp = requests.get(rss_url, timeout=3)
             resp.raise_for_status()
             tree = ET.fromstring(resp.text)
-        except Exception as err:
+        except HTTPError as err:
             print(f"{rss_url} returned bad status code {resp.status_code}")
+        except Timeout as timeout:
+            print(f"{rss_url} timed out.")
+        except Exception as generic:
+            print(f"{generic} unexpected error encountered. Moving on.")
         finally:
             return tree
 
